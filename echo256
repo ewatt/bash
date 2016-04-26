@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# File: echo256
+# Author: Ian Watt
+# Email: iwatt@myseneca.ca
+# Date: 2014-11-04
+# Purpose: Prints a string in a specific or random colour
+
+# uncomment to debug script
+#set -o errexit
+#set -o xtrace
+#set -o verbose
+
+# store the scripts usage string
+USAGE="Usage: echo256 {COLOUR|RANDOM|LIST} STRING"
+
+UNIXCOLOURSFILE="unixcolours.txt"
+
+# get all 256 (203!?) colours from the unixcolours.txt file
+# and put into an associative array
+declare -A colours="($(awk -F' ' \
+		'/^.* .*$/ \
+		{print "[" $2 "]=\"" $1 "\" \\"}' \
+		$UNIXCOLOURSFILE))"
+
+# get just the colour names
+# this is used for displaying the available colours
+# and when selecting a random colour
+declare -a colour_names="( \
+		$(awk -F' ' \
+			'/^.* .*$/ \
+			{print $2}' \
+			$UNIXCOLOURSFILE \
+		| sort \
+		| uniq \
+		) \
+		$(awk -F' ' \
+			'/^.* .*$/ \
+			{print tolower($2)}' \
+			$UNIXCOLOURSFILE \
+		| sort \
+		| uniq \
+		) \
+	)"
+
+# get the number of colours because there isn't 256 of them
+number_of_colours=${#colours[*]}
+
+# get the number of colour names
+number_of_colour_names=${#colour_names[*]}
+
+# create the regex string for all of the colours
+# awk will create the regex as "^COLOUR$|^colour$|..." then
+# pipe it through sed to drop the final '|' character
+regex="$(awk -F ' ' \
+			'/^.* .*$/ \
+			{printf "^%s$|^%s$|", $2, tolower($2)}' \
+			$UNIXCOLOURSFILE \
+		| sed 's/|$//')"
+
+if [[ $1 =~ ^list$|^LIST$ ]]; then
+	echo $USAGE
+	echo "Available colours are:"
+	echo ${colour_names[*]}
+	exit 3
+fi
+
+if [ $# -lt 2 ]; then
+	echo $USAGE
+	exit 1
+fi
+
+# store the input in variables to make the code more easily readable
+# Get $colour from the first command line argument
+colour=$1
+# Drop the first argument and put everything else in string
+shift
+string="$*"
+
+# these regexes are for checking the case of the first character
+re_uppercase='^[A-Z]'
+re_lowercase='^[a-z]'
+
+# Check the case of the first character and make the whole string that case
+# also sets $bold depending on the case
+if [[ $colour =~ $re_uppercase ]]; then
+	colour=$(echo $colour | tr '[:lower:]' '[:upper:]')
+	bold='1;'
+elif [[ $colour =~ $re_lowercase ]]; then
+	colour=$(echo $colour | tr '[:upper:]' '[:lower:]')
+	bold=''
+fi
+
+# set the colour to a random colour value
+if [[ $colour =~ ^random$|^RANDOM$ ]]; then
+	colour=${colour_names[$((RANDOM%${number_of_colours}))]}
+fi
+
+if [[ $colour =~ $regex ]]; then
+	echo -ne '\e['${bold}'38;5;'${colours[$colour]}'m'
+	echo -e $string'\e[0m'
+	exit 0
+else
+	echo $USAGE
+	echo "[!] Invalid colour specified!"
+	echo "Use '$(basename $0) list' to display available colours"
+	exit 2
+fi
+

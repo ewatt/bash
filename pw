@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# Author: Ian Watt #015-776-024
+# Email: iwatt@myseneca.ca
+# Date: 15-09-2014
+# Purpose: this script validates or generates passwords
+
+# Uncomment for debugging mode
+#set -x		# stack trace
+#set -e		# exit on error
+
+# Display the scripts usage statement
+function display_usage()
+{
+    cat <<- PROGRAM_USAGE
+	Usage: $(basename $0) [-h|password]
+
+	pw validates or generates passwords.
+
+	If pw is run without a parameter it will generate
+	a random password based on these rules:
+
+	It must be at least 8 characters long but not longer than 16 characters.
+	It must contain at least 1 digit (0-9).
+	It must contain at least 1 lowercase letter.
+	It must contain at least 1 uppercase letter.
+	It must contain exactly one and only one of @ # $ % & * + - =
+
+	If pw is run without a parameter but with a "-h" option it
+	will generate a "Usage/Help" synopsis of the command.
+
+	If "pw" is run with one parameter (a suggested password) it
+	will be verified against the rules listed above.
+	PROGRAM_USAGE
+    exit 1
+}
+
+# Verifies if a password meets the required criteria
+function verify_password()
+{
+    local password="$@"
+
+	# initalize all tests to 1
+	# if a test passes it changes to 0
+    local length_in_range=1
+    local contains_digit=1
+    local contains_lowercase=1
+    local contains_uppercase=1
+    local contains_special=1
+
+    # check if password is between 8 and 16 characters
+    if [[ ${#password} -ge 8 && ${#password} -le 16 ]]; then
+        length_in_range=0
+	else
+		length_in_range=1
+		echo "[!] $password must be between 8 and 16 characters long"
+    fi
+
+    # check if password contains numbers
+    echo "$password" | grep -q '[0-9]'
+    contains_digit=$?
+	if [[ $contains_digit -ne 0 ]]; then
+		echo "[!] $password must contain at least one digit"
+	fi
+
+    # check if password contains lowercase letters
+    echo "$password" | grep -q '[a-z]'
+    contains_lowercase=$?
+	if [[ $contains_lowercase -ne 0 ]]; then
+		echo "[!] $password must contain at least one lowercase character"
+	fi
+
+    # check if password contains uppercase letters
+    echo "$password" | grep -q '[A-Z]'
+    contains_uppercase=$?
+	if [[ $contains_uppercase -ne 0 ]]; then
+		echo "[!] $password must contain at least one uppercase character"
+	fi
+
+    # check if password contains a special character
+    echo "$password" | grep -q '[@#$%&*+=\-]'
+    contains_special=$?
+	if [[ $contains_special -ne 0 ]]; then
+		echo "[!] $password must contain at least one symbol character"
+	fi
+
+	# if the password passed all the tests then the sum of all
+	# the return codes should be zero and therefore it is valid
+    if [[ $contains_digit -eq 0 \
+			&& $contains_lowercase -eq 0 \
+			&& $contains_uppercase -eq 0 \
+			&& $contains_special -eq 0 \
+			&& $length_in_range -eq 0 ]]; then
+		echo "[+] $password is a valid password."
+	else
+		echo "[-] $password is not a valid password!"
+		exit 2
+	fi
+}
+
+# Generates a new password based on the required criteria
+function generate_password()
+{
+	# Select a random symbol to insert in the password
+	# The password is only required to contain one symbol character
+	local symbol=$(< /dev/urandom \
+		tr -dc [=@=][=#=][=$=][=%=][=\&=][=*=][=+=][=-=][===] \
+		| head -c1)
+
+	# Choose a random value between 7 and 15 for the password length
+	# We are going to add the symbol character in the string later
+	# to make the password between 8 and 16 characters.
+	local password_length=$((($RANDOM % 9)+7))
+
+	# Generate a random string of alphanumerical characters
+	# between 8 and $password_length characters long
+	# The loop ensures that the password string will have at least
+	# one digit, one lowercase, and one uppercase character
+	until $(echo $password | grep -q '[a-z][A-Z][0-9]'); do
+		local password=$(< /dev/urandom tr -dc [:alnum:] \
+			| head -c$password_length)
+	done
+
+	# Choose a random value between 0 and length of password
+	local symbol_position=$(( ($RANDOM % ($password_length+1)) ))
+
+	# This looks confusing but not as much as when I tried it with sed.
+	# We combine the first part of the password up to the random position,
+	# then the symbol character, and then the rest of the password.
+	#
+	# ^StartOfPasswordToPosition + Symbol + EndOfPasswordFromPosition$
+	#
+	password=${password:0:$symbol_position}$symbol${password:$symbol_position}
+
+	# display the password
+    echo "$password"
+}
+
+# The main function will parse the options passed to the script
+# and call the required function for each argument.
+function main()
+{
+    # if no command line options were given
+    if [[ $# -eq 0 ]]; then
+        # Generate a new password
+		generate_password
+
+    else
+        # parse the command line options
+        for options in "$@"
+        do
+            case $options in
+                -h|--help)
+                    # Display the script usage statement
+                    display_usage
+                    ;;
+                *)
+                    # '*' is usually used for unknown options
+                    # Verify the password passed to the script
+					verify_password $options
+                    ;;
+            esac
+        done
+    fi
+}
+
+# call the main function with the command line arguments
+main "$@"
+
+exit 0
+

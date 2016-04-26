@@ -1,0 +1,98 @@
+#!/bin/bash
+# OPS435 - lab03
+# Written by John Selmys - February 2012
+# Modified by Ian Watt - October 2014
+# Updated - January 2014
+# Seneca College, Toronto
+#
+# BASH script to print strings in colour
+#
+# Note: This script takes at least two parameters
+#	    COLOUR - which will be the colour of the string (see code below)
+#	    STRING - string to colourize
+#
+# Usage: echoc COLOUR STRING
+#
+
+declare -A colours=( \
+	[black]="0;30" \
+	[red]="0;31" \
+	[green]="0;32" \
+	[yellow]="0;33" \
+	[blue]="0;34" \
+	[magenta]="0;35" \
+	[cyan]="0;36" \
+	[white]="0;37" \
+	[BLACK]="1;30" \
+	[RED]="1;31" \
+	[GREEN]="1;32" \
+	[YELLOW]="1;33" \
+	[BLUE]="1;34" \
+	[MAGENTA]="1;35" \
+	[CYAN]="1;36" \
+	[WHITE]="1;37" \
+)
+
+declare -a colour_names=(\
+	"black" \
+	"red" \
+	"green" \
+	"yellow" \
+	"blue" \
+	"magenta" \
+	"cyan" \
+	"white" \
+	"BLACK" \
+	"RED" \
+	"GREEN" \
+	"YELLOW" \
+	"BLUE" \
+	"MAGENTA" \
+	"CYAN" \
+	"WHITE" \
+)
+
+if [ $# -lt 2 ]; then
+	echo Usage: echoc {COLOUR|RANDOM} STRING
+	exit 1
+fi
+
+# store the input in variables to make the code more easily readable
+# Get $color from the first command line argument
+colour=$1
+# Drop the first argument and put everything else in string
+shift
+string="$*"
+
+# regex of all the colour names in upper and lower case
+regex='^black$|^BLACK$|^red$|^RED$|^green$|^GREEN$|^yellow$|^YELLOW$|^blue$|^BLUE$|^magenta$|^MAGENTA$|^cyan$|^CYAN$|^white$|^WHITE$'
+
+# these regexes are for checking the case of the first character
+re_uppercase='^[A-Z]'
+re_lowercase='^[a-z]'
+
+# Check the case of the first character and make the whole string that case
+if [[ $colour =~ $re_uppercase ]]; then
+	colour=$(echo $colour | tr '[:lower:]' '[:upper:]')
+elif [[ $colour =~ $re_lowercase ]]; then
+	colour=$(echo $colour | tr '[:upper:]' '[:lower:]')
+fi
+
+if [[ $colour =~ ^random$ ]]; then
+	colour=${colour_names[$((RANDOM%8))]}
+elif [[ $colour =~ ^RANDOM$ ]]; then
+	colour=${colour_names[$(((RANDOM%8)+8))]}
+fi
+
+echo "${!colours[*]}"
+
+if [[ $colour =~ $regex ]]; then
+	echo -ne '\e['${colours[$colour]}m
+	echo -e $string'\e[0m'
+	exit 0
+else
+	echo COLOUR must be one of 'black|red|green|yellow|blue|magenta|cyan|white|random'
+	echo or 'BLACK|RED|GREEN|YELLOW|BLUE|MAGENTA|CYAN|WHITE|RANDOM' for bold
+	exit 2
+fi
+

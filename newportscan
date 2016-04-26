@@ -1,0 +1,106 @@
+#!/bin/bash
+# OPS435 - lab04
+# Written by John Selmys - February 2012
+# Modified by XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+# Seneca College, Toronto
+#
+# BASH script for scanning tcp ports to see which are open
+#
+# Note: This script takes one or two parameters
+#	    port(s):  which port or ports to scan
+#                     may be one port or a range, eg 100-200
+#                     default is 1-1023; all the secure ports
+#           host: the host IP address or FQDN, no default
+#
+# Usage: portscan [port|range] host
+#
+
+function check_parms() {
+	case $# in
+		1) ports='1-1023'
+		   host=$1 ;;
+		2) ports=$1
+		   host=$2 ;;
+		*) echo 'Usage: portscan [port|range] host'
+		   exit 1 ;;
+	esac
+}
+
+function check_ports() {
+	if [ "$(echo $ports | grep '^[1-9][0-9]*-[1-9][0-9]*$')" != "" ]; then
+		firstport=$(echo $ports | cut -d- -f1)
+		lastport=$(echo $ports | cut -d- -f2)
+	elif [ "$(echo $ports | grep '^[1-9][0-9]*$')" != "" ]; then
+		firstport=$ports
+		lastport=$ports
+	else
+		echo "$ports is an invalid port(s) value"
+		exit 2
+	fi
+}
+
+function check_order() {
+	if [ $firstport -gt $lastport ]; then
+		echo $firstport is larger than $lastport
+		exit 3
+	fi
+}
+
+function check_host() {
+	regex='^([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}$'
+	if [ "$(echo $host | grep '[A-Za-z]')" != "" ]; then
+		if [[ "$(host $host)" =~ "not found" ]]; then
+			echo host $host not found
+			exit 4
+		fi
+	elif [[ ! $host =~ $regex ]]; then
+		echo $host is an invalid host address
+		exit 5
+	fi
+}
+
+function check_ping() {
+	if [[ "$(ping -c 1 -W 2 -n $host)" =~ "0 received" ]]; then
+		echo $host is unreachable
+		exit 6
+	fi
+}
+
+function do_scan() {
+	echo -n "Scanning "
+	for p in $(seq $firstport $lastport)
+	do
+		echo -n .
+		x=$((echo >/dev/tcp/$host/$p) >/dev/null 2>&1 && echo "$p open")
+		if [ "$x" != "" ]; then  
+			y="${y}
+	$x"
+		fi
+	done
+}
+
+function show_results() {
+	echo -e "\n$y\n"
+}
+
+# Check parameters and exit 1 if problem
+check_parms $@
+
+# Check port range and exit 2 if problem
+check_ports $ports
+
+# Check port order and exit 3 if problem
+check_order $firstport $lastport
+
+# Check host value and exit 4 if not found else exit 5 if invalid
+check_host $host
+
+# Check if host is reachable and exit 6 if not
+check_ping $host
+
+# Do the scan
+do_scan $host $firstport $lastport
+
+# Show results of scan
+show_results
+

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# File: getURLs
+# Author: Ian Watt
+# Email: iwatt@myseneca.ca
+# Date: 2014-11-10
+# Purpose: extracts urls from a web site using sed
+
+# check for a single argument
+# display usage statement if invalid
+if [[ $# -ne 1 ]]; then
+	echo "Usage: getURLs URL"
+	exit 1
+fi
+
+# Connect to the host on file handle 5
+exec 5<>/dev/tcp/$1/80
+
+# Request the page from the host
+echo -e "GET / HTTP/1.0\n" >&5
+
+# parse the urls from the page using sed
+# There are three sed statements:
+# sed will match lines containing 'href'
+# then substitute everything before and including 'href="'
+# with a blank string, and then substitute everything after
+# the next quote to the end of the line with a blank string,
+# and then sed will display each url on a newline.
+sed '/href/!d;s/^.*href="//;s/".*$//' <&5 
+

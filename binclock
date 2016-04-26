@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# File: binclock
+# Author: Ian Watt
+# Email: iwatt@myseneca.ca
+# Date: 2014-11-04
+# Purpose: Displays a binary clock so that nerds can tell what time it is.
+
+# uncomment to debug script
+#set -o errexit
+#set -o xtrace
+#set -o verbose
+
+# store the scripts usage string
+USAGE="Usage: $(basename $0)"
+
+# store the unicode characters that we will use
+BIT_ON='\u25A0'		# unicode filled square
+BIT_OFF='\u25A1'	# unicode empty square
+ARROW='\u2192'		# unicode right pointing arrow
+
+# the width and height of the clock used to center the display
+CLOCKWIDTH=9
+CLOCKHEIGHT=7
+
+die() {
+	# reset screen and cursor on ctrl+C
+	tput sgr0
+	tput cnorm
+	tput rmcup
+	# restore stty settings
+	stty "$SETTINGS"
+	exit 1
+}
+
+windowresize() {
+	# find the new screen center if the window is resized
+	# also called on start up to find screen center
+	SCREENWIDTH=$(tput cols)
+	SCREENHEIGHT=$(tput lines)
+	CENTERWIDTH=$(( ( $SCREENWIDTH - $CLOCKWIDTH ) / 2 ))
+	CENTERHEIGHT=$(( ( $SCREENHEIGHT - $CLOCKHEIGHT ) / 2 ))
+	# clear the screen because the window resized
+	tput clear
+	# color the entire terminal by printing blank
+	# spaces over the entire terminal size
+	for (( i=0; $i<=$SCREENHEIGHT; i++ )); do
+		for (( j=0; $j<=$SCREENWIDTH; j++ )); do
+			echo -n ' '
+		done
+	done
+}
+
+# exit on interupt signal [ctrl+c]
+trap die SIGINT
+
+# enable resetting the window when the window is resized
+trap windowresize SIGWINCH
+
+# store stty settings to restore them on exit
+SETTINGS=$(stty -g)
+
+# start alternate display
+tput smcup
+
+# clear the screen
+tput clear
+
+# hide cursor
+tput civis
+
+# hide input from keyboard so keypresses won't mess up the clock
+# and enable flow control to ensure ctrl+s and ctrl+q will work.
+stty -echo ixon
+
+# set colors for each column of the clock
+C1=$(tput setaf 8)
+C2=$(tput setaf 9)
+C3=$(tput setaf 10)
+C4=$(tput setaf 11)
+
+# set a color for the background to blue
+tput setab 4
+
+# set text to bold 
+tput bold
+
+# call windowresize to initalize the screen size
+windowresize
+
+# begin the loop of eternity
+while true; do
+
+	# get each segment of the current time
+	read hour minute second <<<$(date "+%H %M %S")
+
+	# convert each segment to a binary string using bc
+	# then prepend leading zeros with awk
+	hour_binary=$(bc<<<"ibase=10;obase=2;$hour" \
+		| awk '{printf "%06d", $0}')
+	minute_binary=$(bc<<<"ibase=10;obase=2;$minute" \
+		| awk '{printf "%06d", $0}')
+	second_binary=$(bc<<<"ibase=10;obase=2;$second" \
+		| awk '{printf "%06d", $0}')
+
+	# display the clock vertically by cycling thru each bit position
+	# and displaying the values of each clock segment
+	# $i is the bit position to display
+	# $j is used to calculate the place values
+	for (( i=0,j=5; $i<6; i++,j-- )); do
+
+		# position the cursor for display in the center of screen
+		tput cup $(($CENTERHEIGHT+$i)) $CENTERWIDTH
+
+		# convert the current bit into unicode characters
+		[[ ${hour_binary:$i:1} -eq 1 ]] \
+			&& hour_unicode=$BIT_ON \
+			|| hour_unicode=$BIT_OFF
+
+		[[ ${minute_binary:$i:1} -eq 1 ]] \
+			&& minute_unicode=$BIT_ON \
+			|| minute_unicode=$BIT_OFF
+
+		[[ ${second_binary:$i:1} -eq 1 ]] \
+			&& second_unicode=$BIT_ON \
+			|| second_unicode=$BIT_OFF
+
+		# print the current row
+		printf "${C1}%02d%b ${C2}%b ${C3}%b ${C4}%b" \
+			"$((2**$j))" \
+			"$ARROW" \
+			"$hour_unicode" \
+			"$minute_unicode" \
+			"$second_unicode"
+	done
+
+	# print the labels below the clock
+	tput cup $(($CENTERHEIGHT+6)) $(($CENTERWIDTH+4))
+	printf "${C2}H ${C3}M ${C4}S"
+
+	# wait for 1 second so we only write to the screen 
+	# when the time changes
+	sleep 1
+
+done
+

@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Author: Ian Watt
+# Email: iwatt@myseneca.ca
+# Date: 2014-10-02
+# Purpose: This script will test a specified script against a 
+#   against a list of input values.  Each set of input values
+#   must be on a new line in a test file.
+
+# uncomment to debug script
+#set -x
+
+# the scripts usage string
+usage="Usage: $(basename $0) testscript testdata"
+
+# check if there are enough arguments provided
+# otherwise display the usage statement and exit
+if [[ $# -ne 2 ]]; then
+    echo $usage
+    exit 1
+fi
+
+# put command line arguments into variables
+testscript=$1
+testdata=$2
+
+# check if $testscript actually exists and is executable
+# otherwise display usage statement and error message and exit
+if [[ ! -x $testscript ]]; then
+    echo $usage
+    echo [!] $testscript does not exist or is not executable!
+    exit 2
+fi
+
+# check if $testdata actually exists and is readable
+# otherwise display usage statement and error message and exit
+if [[ ! -f $testdata ]]; then
+    echo $usage
+    echo [!] $testdata does not exist or is not readable!
+    exit 3
+fi
+
+# loop through the $testdata and run each line against $testscript
+while read line
+do
+    # get the current line of $testfile
+    values=$line
+
+    # display what command we are going to run
+    echo [-] Command: $testscript $values
+
+    # run the command with current lines arguments
+    $testscript $values
+
+    # get the return code of the last command
+    ret_code=$?
+
+    # display the return code of the last command
+    echo [-] Return Code: $ret_code
+
+    # if the return code is not zero then display fail message
+    # otherwise display pass message
+    if [[ $ret_code -ne 0 ]]; then
+        echo [!] Testcase failed!
+    else
+        echo [+] Testcase passed!
+    fi
+
+    # print an empty line for better readability
+    echo
+done < $testdata
+
+exit 0
